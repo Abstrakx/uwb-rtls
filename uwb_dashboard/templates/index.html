@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UWB Tracker Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+  <div class="max-w-6xl mx-auto py-8 px-4">
+    <h1 class="text-3xl font-bold mb-6 text-center">Cerdas UWB Tracker Dashboard</h1>
+
+    <div class="grid grid-cols-3 gap-6">
+      <!-- Posisi 3D -->
+      <div class="col-span-2 bg-gray-800 rounded-2xl p-6 shadow-lg">
+        <h2 class="text-xl font-semibold mb-4">Posisi Tag (X, Y, Z)</h2>
+        <div id="pos" class="text-3xl font-mono text-blue-400 mb-4">X: 0, Y: 0, Z: 0</div>
+        <div id="plot-area" class="h-96 border border-gray-700 rounded-xl"></div>
+      </div>
+
+      <!-- Data Anchor -->
+      <div class="bg-gray-800 rounded-2xl p-6 shadow-lg">
+        <h2 class="text-xl font-semibold mb-4">Data Anchor</h2>
+        <div id="server-ip" class="text-center text-gray-400 text-sm"></div>
+        <div id="tag-status" class="text-center text-gray-300 py-2 italic"></div>
+        <div id="anchors" class="space-y-3">
+            <div id="anchor-list" class="space-y-3"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/javascript" src="{{ url_for('static', filename = 'js/socketIO.js') }}"></script>
+</body>
+</html>

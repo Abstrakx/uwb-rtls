@@ -1,0 +1,8 @@
+#pos {
+    transition: all 0.3s ease;
+  }
+  
+  .bg-gray-700:hover {
+    background-color: #374151;
+  }
+  
