@@ -10,27 +10,98 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
-<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
-  <div class="max-w-6xl mx-auto py-8 px-4">
-    <h1 class="text-3xl font-bold mb-6 text-center">Cerdas UWB Tracker Dashboard</h1>
+<body class="bg-gradient-to-br from-gray-900 via-blue-950 to-gray-900 text-gray-100 font-sans min-h-screen">
+  <!-- Header dengan Gradient -->
+  <div class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 py-1"></div>
+  
+  <div class="max-w-7xl mx-auto py-4 sm:py-6 px-3 sm:px-4">
+    
+    <!-- Header Section -->
+    <div class="mb-6 sm:mb-8 text-center">
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2 sm:mb-3 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+        🎯 Cerdas UWB Tracker
+      </h1>
+      <p class="text-gray-400 text-sm sm:text-base lg:text-lg">Real-time Ultra-Wideband Positioning System</p>
+    </div>
 
-    <div class="grid grid-cols-3 gap-6">
-      <!-- Posisi 3D -->
-      <div class="col-span-2 bg-gray-800 rounded-2xl p-6 shadow-lg">
-        <h2 class="text-xl font-semibold mb-4">Posisi Tag (X, Y, Z)</h2>
-        <div id="pos" class="text-3xl font-mono text-blue-400 mb-4">X: 0, Y: 0, Z: 0</div>
-        <div id="plot-area" class="h-96 border border-gray-700 rounded-xl"></div>
-      </div>
-
-      <!-- Data Anchor -->
-      <div class="bg-gray-800 rounded-2xl p-6 shadow-lg">
-        <h2 class="text-xl font-semibold mb-4">Data Anchor</h2>
-        <div id="server-ip" class="text-center text-gray-400 text-sm"></div>
-        <div id="tag-status" class="text-center text-gray-300 py-2 italic"></div>
-        <div id="anchors" class="space-y-3">
-            <div id="anchor-list" class="space-y-3"></div>
+    <!-- Status Bar -->
+    <div class="glass-effect rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-4 sm:mb-6 slide-in">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div id="tag-status" class="text-base sm:text-lg font-semibold flex items-center gap-2">
+            <span class="pulse-glow">🔴</span> 
+            <span class="truncate">Tag Disconnected</span>
+          </div>
+        </div>
+        <div id="server-ip" class="text-gray-400 flex items-center gap-2 text-sm sm:text-base w-full sm:w-auto">
+          <span>💻</span> 
+          <span class="truncate">Server: Connecting...</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto">
+          <span class="inline-block w-2 h-2 bg-green-500 rounded-full pulse-glow"></span>
+          <span class="text-gray-400">Live Tracking</span>
         </div>
       </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      
+      <!-- 3D Visualization - Main Area -->
+      <div class="lg:col-span-2 gradient-border rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl slide-in">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2">
+          <h2 class="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <span class="text-2xl sm:text-3xl">📍</span> 
+            <span>3D Position Tracking</span>
+          </h2>
+          <div class="flex gap-2">
+            <span class="px-2 sm:px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs sm:text-sm font-semibold">LIVE</span>
+          </div>
+        </div>
+        
+        <!-- Position Display -->
+        <div class="bg-gradient-to-r from-blue-900/40 to-purple-900/40 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border border-blue-500/30">
+          <div class="text-xs sm:text-sm text-gray-400 mb-2 flex items-center gap-2">
+            <span>📊</span> Current Coordinates
+          </div>
+          <div id="pos" class="text-lg sm:text-xl lg:text-2xl font-mono text-transparent bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text font-bold break-all">
+            X: 0.00 m, Y: 0.00 m, Z: 0.00 m
+          </div>
+        </div>
+
+        <!-- 3D Plot Area -->
+        <div id="plot-area" class="h-64 sm:h-80 lg:h-[450px] rounded-lg sm:rounded-xl overflow-hidden border-2 border-gray-700/50 shadow-inner"></div>
+      </div>
+
+      <!-- Sidebar - Anchor Data -->
+      <div class="gradient-border rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl slide-in">
+        <h2 class="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center gap-2">
+          <span class="text-2xl sm:text-3xl">📡</span> 
+          <span>Anchor Network</span>
+        </h2>
+
+        <!-- Anchor Stats -->
+        <div class="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div class="bg-gradient-to-br from-blue-900/40 to-blue-800/40 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-500/30">
+            <div class="text-xs text-gray-400 mb-1">Active Anchors</div>
+            <div id="anchor-count" class="text-2xl sm:text-3xl font-bold text-blue-400">0</div>
+          </div>
+          <div class="bg-gradient-to-br from-purple-900/40 to-purple-800/40 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-purple-500/30">
+            <div class="text-xs text-gray-400 mb-1">Signal Quality</div>
+            <div id="signal-quality" class="text-2xl sm:text-3xl font-bold text-purple-400">-</div>
+          </div>
+        </div>
+
+        <!-- Anchor List -->
+        <div class="space-y-2 sm:space-y-3 max-h-96 sm:max-h-[500px] overflow-y-auto pr-1 sm:pr-2 custom-scrollbar">
+          <div id="anchors"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-6 sm:mt-8 text-center text-gray-500 text-xs sm:text-sm">
+      <p>Powered by UWB Technology | Real-time Positioning System</p>
     </div>
   </div>
 
