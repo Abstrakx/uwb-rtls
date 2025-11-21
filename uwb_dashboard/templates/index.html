@@ -96,7 +96,31 @@
           <div id="anchors"></div>
         </div>
       </div>
+            
+      <!-- Anchor Config (dynamic) -->
+      <div class="gradient-border rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl slide-in mt-4">
+        
+        <h2 class="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 flex items-center gap-2">
+          <span class="text-2xl sm:text-3xl">⚙️</span>
+          <span>Anchor Configuration</span>
+        </h2>
 
+        <p class="text-gray-400 text-sm mb-4">
+          Set posisi anchor untuk trilaterasi. Data ini akan disimpan di server.
+        </p>
+
+        <form id="anchor-form" class="space-y-4 max-h-72 overflow-y-auto custom-scrollbar pr-2"></form>
+
+        <button 
+          onclick="saveAnchors()" 
+          class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg w-full font-semibold shadow-lg transition">
+          💾 Save Configuration
+        </button>
+
+        <div id="anchor-save-status" class="text-center text-gray-400 text-sm mt-2"></div>
+      </div>
+
+        
     </div>
 
     <!-- Footer -->

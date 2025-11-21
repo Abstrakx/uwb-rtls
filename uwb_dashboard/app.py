@@ -12,8 +12,8 @@ tag_ip = None
 
 # Anchor Position
 ANCHOR_FILE = "anchors.json"
-anchor_positions = {}   # { "A1": {"x":0,"y":0,"z":0}, ... }
-last_ranges = {}         # { "A1": 2.5, "A2": 3.1, ... }
+anchor_positions = {}  
+last_ranges = {}        
 
 @app.route('/')
 def index():
@@ -21,7 +21,7 @@ def index():
 
 @app.route('/uwb/update', methods=['POST'])
 def uwb_update():
-    global tag_ip, last_tag_time
+    global tag_ip, last_tag_time, anchor_positions
 
     try:
         data = request.get_json(force=True)
@@ -37,7 +37,33 @@ def uwb_update():
                     "rssi": float(anchor["P"])
                 }
 
-        pos_data = {"x": 2.5, "y": 2.5, "z": 1.0}
+        ranges = {
+            k: max(0.1, abs(anchors_data[k]["range"]))  
+            for k in anchors_data
+        }
+
+        usable = {k: anchor_positions[k] for k in ranges if k in anchor_positions}
+
+        pos = None
+        if len(usable) >= 3:
+            pos = trilaterate_3d(usable, ranges)
+
+        # ---- FIX KERAS ANTI ERROR ----
+        # normalize output trilaterate
+        if isinstance(pos, (int, float, np.generic)):
+            # scalar → bukan valid
+            pos = None
+        elif isinstance(pos, np.ndarray) and pos.ndim == 0:
+            pos = None
+
+        if pos is None or not hasattr(pos, "__len__") or len(pos) != 3:
+            pos_data = {"x": 0, "y": 0, "z": 0}
+        else:
+            pos_data = {
+                "x": float(pos[0]),
+                "y": float(pos[1]),
+                "z": float(pos[2]),
+            }
 
         tag_ip = request.remote_addr
         last_tag_time = time.time()
@@ -76,14 +102,13 @@ def get_local_ip():
     return ip
 
 # API: update anchor positions from frontend
-@app.route('/set_anchors', methods=['POST'])
+@app.route("/set_anchors", methods=["POST"])
 def set_anchors():
     global anchor_positions
-    data = request.get_json()
+    data = request.get_json(force=True)
     if not isinstance(data, dict):
-        return jsonify({"error": "Invalid JSON"}), 400
-
-    anchor_positions = data
+        return jsonify({"error": "Invalid payload"}), 400
+    anchor_positions.update(data)
     save_anchors()
     socketio.emit("anchor_update", anchor_positions)
     return jsonify({"status": "ok", "anchors": anchor_positions})
@@ -92,49 +117,85 @@ def set_anchors():
 def load_anchors():
     global anchor_positions
     if os.path.exists(ANCHOR_FILE):
-        with open(ANCHOR_FILE, "r") as f:
-            anchor_positions = json.load(f)
-            print("📁 Loaded anchor positions:", anchor_positions)
+        try:
+            with open(ANCHOR_FILE, "r") as f:
+                anchor_positions = json.load(f)
+            print("📁 Loaded anchors:", anchor_positions)
+        except Exception as e:
+            print("⚠️ Failed to load anchors.json:", e)
+            anchor_positions = {}
     else:
-        print("⚠️ No anchors.json found. Using empty anchor set.")
+        print("⚠️ anchors.json not found — start empty")
         anchor_positions = {}
 
 def save_anchors():
+    global anchor_positions
     with open(ANCHOR_FILE, "w") as f:
         json.dump(anchor_positions, f, indent=2)
     print("💾 Anchors saved:", anchor_positions)
 
 # Trilateration Algorithm (3D)
-def trilaterate(anchors, ranges):
-    if len(anchors) < 3:
-        return {"x": 0, "y": 0, "z": 0}  # minimal 3 anchor
+def trilaterate_3d(anchor_positions, ranges):
+    keys = list(anchor_positions.keys())
 
-    ids = list(anchors.keys())[:3]
-    P1 = np.array([anchors[ids[0]]['x'], anchors[ids[0]]['y'], anchors[ids[0]]['z']])
-    P2 = np.array([anchors[ids[1]]['x'], anchors[ids[1]]['y'], anchors[ids[1]]['z']])
-    P3 = np.array([anchors[ids[2]]['x'], anchors[ids[2]]['y'], anchors[ids[2]]['z']])
+    valid = [k for k in keys if k in ranges and ranges[k] >= 0]
+    if len(valid) < 4:
+        return None
 
-    r1, r2, r3 = ranges.get(ids[0], 0), ranges.get(ids[1], 0), ranges.get(ids[2], 0)
+    keys = valid[:4]  
 
-    ex = (P2 - P1) / np.linalg.norm(P2 - P1)
-    i = np.dot(ex, P3 - P1)
-    ey = (P3 - P1 - i * ex) / np.linalg.norm(P3 - P1 - i * ex)
-    ez = np.cross(ex, ey)
-    d = np.linalg.norm(P2 - P1)
-    j = np.dot(ey, P3 - P1)
+    P1 = np.array((
+        anchor_positions[keys[0]]["x"],
+        anchor_positions[keys[0]]["y"],
+        anchor_positions[keys[0]]["z"],
+    ))
+    r1 = ranges[keys[0]]
 
-    x = (r1**2 - r2**2 + d**2) / (2 * d)
-    y = (r1**2 - r3**2 + i**2 + j**2 - 2*i*x) / (2 * j)
-    z2 = r1**2 - x**2 - y**2
-    z = math.sqrt(abs(z2)) if z2 > 0 else 0
+    A = []
+    b = []
 
-    result = P1 + x * ex + y * ey + z * ez
-    return {"x": float(result[0]), "y": float(result[1]), "z": float(result[2])}
+    for k in keys[1:]:
+        Pi = np.array((
+            anchor_positions[k]["x"],
+            anchor_positions[k]["y"],
+            anchor_positions[k]["z"],
+        ))
+        ri = ranges[k]
+
+        A.append([
+            2*(Pi[0] - P1[0]),
+            2*(Pi[1] - P1[1]),
+            2*(Pi[2] - P1[2])
+        ])
+
+        b.append(
+            r1**2 - ri**2
+            - (P1[0]**2 - Pi[0]**2)
+            - (P1[1]**2 - Pi[1]**2)
+            - (P1[2]**2 - Pi[2]**2)
+        )
+
+    A = np.array(A)
+    b = np.array(b)
+
+    pos, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+
+    pos = np.array(pos).flatten()
+    if pos.size != 3:
+        return None
+
+    return pos.tolist()
+
+@app.route("/anchor/get", methods=["GET"])
+def anchor_get():
+    return jsonify(anchor_positions)
 
 @socketio.on('connect')
 def handle_connect():
+    emit("anchor_update", anchor_positions)
     print("Client connected")
 
 if __name__ == '__main__':
+    load_anchors()
     socketio.start_background_task(tag_status_monitor)
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
