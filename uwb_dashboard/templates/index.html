@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
@@ -64,7 +65,7 @@
             <span>📊</span> Current Coordinates
           </div>
           <div id="pos" class="text-lg sm:text-xl lg:text-2xl font-mono text-transparent bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text font-bold break-all">
-            X: 0.00 m, Y: 0.00 m, Z: 0.00 m
+            X: 0.00 m, Y: 0.00 m
           </div>
         </div>
 
@@ -96,7 +97,7 @@
           <div id="anchors"></div>
         </div>
       </div>
-            
+      
       <!-- Anchor Config (dynamic) -->
       <div class="gradient-border rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl slide-in mt-4">
         
@@ -105,7 +106,7 @@
           <span>Anchor Configuration</span>
         </h2>
 
-        <p class="text-gray-400 text-sm mb-4">
+        <p class="text-gray-400 text-sm mb-6">
           Set posisi anchor untuk trilaterasi. Data ini akan disimpan di server.
         </p>
 
@@ -120,13 +121,52 @@
         <div id="anchor-save-status" class="text-center text-gray-400 text-sm mt-2"></div>
       </div>
 
-        
+      <!-- RSSI Monitor Plot (dynamic) -->
+      <div class="lg:col-span-2 gradient-border rounded-xl p-4 sm:p-6 shadow-2xl slide-in mt-4">
+        <h2 class="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2">
+          📡 RSSI Monitor
+        </h2>
+  
+        <div id="rssi-chart" class="w-full h-64"></div>
+  
+        <div class="mt-4 grid grid-cols-2 gap-4">
+          <button onclick="startRecording()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-semibold">
+            ▶ Start Recording
+          </button>
+  
+          <button onclick="stopRecording()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-semibold">
+            ⏹ Stop Recording
+          </button>
+
+          <p id="status-label" class="mt-2 text-gray-300 text-sm text-red-400">
+            Stopped
+          </p>
+        </div>
+  
+        <div class="mt-4">
+          <label class="text-sm text-gray-300">Sampling Interval (detik)</label>
+          <input 
+            id="record-interval"
+            type="number"
+            value="1"
+            min="0.2"
+            step="0.1"
+            class="w-full bg-gray-800 text-white rounded p-2 mt-1"
+          >
+        </div>
+  
+        <a href="/rtls/download" class="mt-4 block text-center bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-semibold">
+          📥 Download Excel
+        </a>
+  
     </div>
+
 
     <!-- Footer -->
     <div class="mt-6 sm:mt-8 text-center text-gray-500 text-xs sm:text-sm">
       <p>Powered by UWB Technology | Real-time Positioning System</p>
     </div>
+    
   </div>
 
   <script type="text/javascript" src="{{ url_for('static', filename = 'js/socketIO.js') }}"></script>

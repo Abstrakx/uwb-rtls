@@ -5,6 +5,7 @@ let isTagConnected = false;
 let currentAnchors = {};
 let anchorFormInitialized = false;
 let lastAnchorKeySet = [];
+let rssiPoints = { A1: [], A2: [], A3: [], A4: [] };
 
 let lastValidData = null;
 let lastUpdate = 0;
@@ -13,6 +14,79 @@ const STALE_THRESHOLD = 500;
 let lastTagStatus = null;
 let lastTagUpdateTime = 0;
 const TAG_UPDATE_THRESHOLD = 300; 
+
+function updateRSSIChart(anchors) {
+  const t = new Date().toLocaleTimeString();
+
+  Object.keys(rssiPoints).forEach(a => {
+    if (!anchors[a]) delete rssiPoints[a];
+  });
+
+  Object.keys(anchors).forEach(a => {
+    const rssi = anchors[a].rssi;
+    if (rssi == null) return;
+
+    if (!rssiPoints[a]) rssiPoints[a] = [];
+
+    rssiPoints[a].push({time: t, value: rssi});
+    if (rssiPoints[a].length > 50) rssiPoints[a].shift();
+  });
+
+  drawRSSIChart();
+}
+
+function drawRSSIChart() {
+  const traces = Object.keys(rssiPoints)
+    .filter(a => rssiPoints[a].length > 0)
+    .map(a => ({
+      x: rssiPoints[a].map(p => p.time),
+      y: rssiPoints[a].map(p => p.value),
+      mode: 'lines',
+      name: a
+    }));
+
+  Plotly.newPlot('rssi-chart', traces, {
+    margin: {l: 30, r: 10, b: 30, t: 10},
+    paper_bgcolor: "#111827",
+    plot_bgcolor: "#111827",
+  }, { displayModeBar: false });
+}
+
+function renderRSSIPlaceholder() {
+  Plotly.newPlot('rssi-chart', [{
+    x: [],
+    y: [],
+    mode: "lines",
+    name: "RSSI",
+  }], {
+    margin: {l: 30, r: 10, b: 30, t: 10},
+    paper_bgcolor: "#111827",
+    plot_bgcolor: "#111827",
+    xaxis: {
+      color: "#aaa",
+      title: "Time",
+      range: [0, 10]
+    },
+    yaxis: {
+      color: "#aaa",
+      title: "RSSI (dBm)",
+      range: [-50, 0]
+    },
+    annotations: [
+      {
+        text: "⏳ Waiting for RSSI data...",
+        x: 0.5,
+        y: 0.5,
+        xref: "paper",
+        yref: "paper",
+        showarrow: false,
+        font: {color: "#888", size: 16}
+      }
+    ]
+  }, {
+    displayModeBar: false
+  });
+}
 
 socket.on('tag_status', (data) => {
 
@@ -45,6 +119,7 @@ socket.on('tag_status', (data) => {
 });
 
 socket.on("uwb_update", (data) => {
+
   if (!data || !data.anchors) return;
 
   const keys = Object.keys(data.anchors);
@@ -79,14 +154,11 @@ socket.on('uwb_update', (data) => {
   if (isStale) {
     console.log("[UWB DATA] ❌ stale/offline – placeholder mode");
 
-    const placeholderData = {
-      pos: {x: 0, y: 0, z: 0},
-      anchors: {}
-    };
-
     renderPlotPlaceholder();     
     updateAnchorsUI({});         
     updateTagUI({x: 0, y: 0, z: 0});
+
+    renderRSSIPlaceholder() 
 
     return;
   }
@@ -94,10 +166,13 @@ socket.on('uwb_update', (data) => {
   console.log("[UWB DATA]", lastValidData);
 
   const pos = lastValidData.pos;
+  const anchors = data.anchors || {};
   const anchorsData = lastValidData.anchors;
 
   updateTagUI(pos);
   updateAnchorsUI(anchorsData);
+
+  updateRSSIChart(anchorsData);
   renderPlot(pos);
 });
 
@@ -168,15 +243,13 @@ function renderPlot(pos) {
   };
 
   Plotly.react("plot-area", [anchorTrace, tagTrace], window.plotLayout);
-}
-
+} 
 
 // Tag position info
 function updateTagUI(pos) {
   document.getElementById("pos").textContent =
     `X: ${pos.x.toFixed(2)} m, Y: ${pos.y.toFixed(2)} m, Z: ${pos.z.toFixed(2)} m`;
 }
-
 
 // Anchor UI cards
 function updateAnchorsUI(anchorsData) {
@@ -261,7 +334,7 @@ function buildAnchorForm(anchorKeys) {
     block.innerHTML = `
       <div class="font-semibold text-lg mb-2 text-blue-300">⚓ ${key}</div>
       
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 gap-2">
 
         <div>
           <label class="text-xs text-gray-400">X (m)</label>
@@ -276,7 +349,7 @@ function buildAnchorForm(anchorKeys) {
             value="${a.y}"
             class="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded-lg text-blue-300">
         </div>
-
+        
         <div>
           <label class="text-xs text-gray-400">Z (m)</label>
           <input type="number" step="0.01" id="${key}-z"
@@ -284,12 +357,68 @@ function buildAnchorForm(anchorKeys) {
             class="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded-lg text-blue-300">
         </div>
 
+
       </div>
     `;
 
     form.appendChild(block);
   });
 }
+
+function startRecording() {
+  const interval = parseFloat(document.getElementById("record-interval").value);
+
+  fetch('/rtls/set_interval', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ interval })
+  });
+
+  fetch('/rtls/start', { method: 'POST' })
+    .then(() => {
+      document.querySelector("#status-label").innerText = "Recording...";
+      document.querySelector("#status-label").classList.remove("text-red-400");
+      document.querySelector("#status-label").classList.add("text-green-400");
+
+      Swal.fire({
+        icon: "success",
+        title: "Recording Started",
+        text: "RSSI data recording sudah dimulai."
+      });
+    })
+    .catch(err => {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to Start",
+        text: err.toString()
+      });
+    });
+}
+
+function stopRecording() {
+  fetch('/rtls/stop', { method: 'POST' })
+    .then(() => {
+      document.querySelector("#status-label").innerText = "Stopped";
+      document.querySelector("#status-label").classList.remove("text-green-400");
+      document.querySelector("#status-label").classList.add("text-red-400");
+
+      renderRSSIPlaceholder();
+
+      Swal.fire({
+        icon: "info",
+        title: "Recording Stopped",
+        text: "RSSI recording dihentikan dan chart dibersihkan."
+      });
+    })
+    .catch(err => {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to Stop",
+        text: err.toString()
+      });
+    });
+}
+
 
 async function saveAnchors() {
   const fields = document.querySelectorAll("[id$='-x']");

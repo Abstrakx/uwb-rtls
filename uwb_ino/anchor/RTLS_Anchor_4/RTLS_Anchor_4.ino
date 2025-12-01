@@ -30,7 +30,7 @@ const uint8_t PIN_SS = 33;   // spi select pin
 
 // Do antenna delay calibration
 //calibrated Antenna Delay setting for this anchor
-uint16_t Adelay = 16580;
+uint16_t Adelay = 16592;
 
 // Device address 
 char this_anchor_addr[] = "84:00:22:EA:82:60:3B:9C";

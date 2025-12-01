@@ -1,9 +1,19 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
+from flask_cors import CORS
 from flask_socketio import SocketIO, emit
-import time, socket, os, json, math
+from openpyxl import Workbook
+from models import db, RTLSRecord
+import time, socket, os, json
 import numpy as np
 
 app = Flask(__name__)
+CORS(app)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///rtls.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Tag Connection
@@ -15,19 +25,33 @@ ANCHOR_FILE = "anchors.json"
 anchor_positions = {}  
 last_ranges = {}        
 
+# Record Data Interval
+last_record_time = 0
+record_interval = 1.0
+
+is_recording = False
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/uwb/update', methods=['POST'])
 def uwb_update():
-    global tag_ip, last_tag_time, anchor_positions
+    global tag_ip, last_tag_time, anchor_positions, last_record_time, record_interval, is_recording
+
+    now = time.time()
 
     try:
         data = request.get_json(force=True)
         print("[UWB UPDATE]", data)
 
         anchors_data = {}
+        anchors_slot = {
+            "A1": None,
+            "A2": None,
+            "A3": None,
+            "A4": None
+        }
 
         if "anchors" in data:
             for anchor in data["anchors"]:
@@ -48,7 +72,6 @@ def uwb_update():
         if len(usable) >= 3:
             pos = trilaterate_3d(usable, ranges)
 
-        # ---- FIX KERAS ANTI ERROR ----
         # normalize output trilaterate
         if isinstance(pos, (int, float, np.generic)):
             # scalar → bukan valid
@@ -64,6 +87,51 @@ def uwb_update():
                 "y": float(pos[1]),
                 "z": float(pos[2]),
             }
+
+        valid = (
+            pos_data["x"] is not None and
+            pos_data["y"] is not None and
+            pos_data["z"] is not None 
+        )
+        
+        for key in anchors_data:
+            raw_id = key.replace("A", "")  
+            last_digit = raw_id[-1]        
+
+            slot_name = f"A{last_digit}"  
+            anchors_slot[slot_name] = key  
+
+        if is_recording and valid and (now - last_record_time >= record_interval):
+            last_record_time = now
+
+            a1_key = anchors_slot["A1"]
+            a2_key = anchors_slot["A2"]
+            a3_key = anchors_slot["A3"]
+            a4_key = anchors_slot["A4"]
+
+            record = RTLSRecord(
+                x=float(pos_data.get("x", 0)), 
+                y=float(pos_data.get("y", 0)), 
+                z=float(pos_data.get("z", 0)), 
+
+                a1_range=anchors_data.get(a1_key, {}).get("range"),
+                a1_rssi=anchors_data.get(a1_key, {}).get("rssi"),
+
+                a2_range=anchors_data.get(a2_key, {}).get("range"),
+                a2_rssi=anchors_data.get(a2_key, {}).get("rssi"),
+
+                a3_range=anchors_data.get(a3_key, {}).get("range"),
+                a3_rssi=anchors_data.get(a3_key, {}).get("rssi"),
+
+                a4_range=anchors_data.get(a4_key, {}).get("range"),
+                a4_rssi=anchors_data.get(a4_key, {}).get("rssi"),
+            )
+
+            db.session.add(record)
+            db.session.commit()
+            print("SAVED")
+        else:
+            print("RTLS TIDAK VALID " + "valid:" + str(valid) + "   recoding:" + str(is_recording))
 
         tag_ip = request.remote_addr
         last_tag_time = time.time()
@@ -185,6 +253,50 @@ def trilaterate_3d(anchor_positions, ranges):
         return None
 
     return pos.tolist()
+
+@app.route("/rtls/start", methods=["POST"])
+def rtls_start():
+    global is_recording
+    is_recording = True
+    return jsonify({"status": "recording_started"})
+
+@app.route("/rtls/stop", methods=["POST"])
+def rtls_stop():
+    global is_recording
+    is_recording = False
+    return jsonify({"status": "recording_stopped"})
+
+@app.route("/rtls/set_interval", methods=["POST"])
+def set_interval():
+    global record_interval
+    record_interval = float(request.json.get("interval", 1))
+    return jsonify({"status": "ok", "interval": record_interval})
+
+@app.route("/rtls/download")
+def download_excel():
+    wb = Workbook()
+    ws = wb.active
+
+    ws.append([
+            "timestamp", "x", "y", "z", 
+            "A1_Range", "A2_Range", "A3_Range", "A4_Range",
+            "A1_RSSI", "A2_RSSI", "A3_RSSI", "A4_RSSI"  
+        ])
+
+    rows = RTLSRecord.query.all()
+    for r in rows:
+        ws.append([
+            r.timestamp, r.x, r.y, r.z, 
+            r.a1_range, r.a2_range, r.a3_range, r.a4_range,
+            r.a1_rssi, r.a2_rssi, r.a3_rssi, r.a4_rssi 
+        ])
+
+    filename = "recordings/rtls.xlsx"
+
+    os.makedirs(os.path.dirname(filename), exist_ok=True) 
+    wb.save(filename)
+
+    return send_file(filename, as_attachment=True)
 
 @app.route("/anchor/get", methods=["GET"])
 def anchor_get():
