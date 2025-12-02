@@ -118,7 +118,7 @@ socket.on('tag_status', (data) => {
   isTagConnected = data.active;
 });
 
-socket.on("uwb_update", (data) => {
+socket.on('uwb_update', (data) => {
 
   if (!data || !data.anchors) return;
 
@@ -176,11 +176,6 @@ socket.on('uwb_update', (data) => {
   renderPlot(pos);
 });
 
-
-// =======================================
-// FUNGSI UI HELPER
-// =======================================
-
 // 3D offline scene
 function renderPlotPlaceholder() {
   const fixedAnchors = [
@@ -201,9 +196,9 @@ function renderPlotPlaceholder() {
   };
 
   const tagTrace = {
-    x: [0],
-    y: [0],
-    z: [0],
+    x: [2.5],
+    y: [2.5],
+    z: [0.5],
     mode: 'markers+text',
     type: 'scatter3d',
     text: ['Tag Offline'],
@@ -451,3 +446,49 @@ async function saveAnchors() {
     statusDiv.classList.add("text-red-400");
   }
 }
+
+document.getElementById('resetDbButton').addEventListener('click', function() {
+  Swal.fire({
+      title: 'Yakin mau Reset Database?',
+      text: "Semua data rekaman RTLS akan dihapus permanen!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus Data!',
+      cancelButtonText: 'Batal'
+  }).then((result) => {
+      if (result.isConfirmed) {
+          fetch('/rtls/reset', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              }
+          })
+          .then(response => response.json())
+          .then(data => {
+              if (data.status === 'reset_success') {
+                  Swal.fire(
+                      'Dihapus!',
+                      'Database rekaman RTLS telah direset.',
+                      'success'
+                  );
+              } else {
+                  Swal.fire(
+                      'Gagal!',
+                      'Gagal mereset database. Cek log server.',
+                      'error'
+                  );
+              }
+          })
+          .catch(error => {
+              console.error('Error:', error);
+              Swal.fire(
+                  'Error Jaringan!',
+                  'Tidak dapat menghubungi server Flask.',
+                  'error'
+              );
+          });
+      }
+  });
+});

@@ -74,7 +74,6 @@ def uwb_update():
 
         # normalize output trilaterate
         if isinstance(pos, (int, float, np.generic)):
-            # scalar → bukan valid
             pos = None
         elif isinstance(pos, np.ndarray) and pos.ndim == 0:
             pos = None
@@ -272,6 +271,16 @@ def set_interval():
     record_interval = float(request.json.get("interval", 1))
     return jsonify({"status": "ok", "interval": record_interval})
 
+@app.route("/rtls/reset", methods=["POST"])
+def rtls_reset():
+    try:
+        num_deleted = db.session.query(RTLSRecord).delete()
+        db.session.commit()
+        return jsonify({"status": "reset_success", "deleted_count": num_deleted})
+    except Exception as e:
+        db.session.rollback() 
+        return jsonify({"status": "reset_failed", "error": str(e)}), 500
+
 @app.route("/rtls/download")
 def download_excel():
     wb = Workbook()
@@ -305,9 +314,8 @@ def anchor_get():
 @socketio.on('connect')
 def handle_connect():
     emit("anchor_update", anchor_positions)
-    print("Client connected")
 
 if __name__ == '__main__':
     load_anchors()
     socketio.start_background_task(tag_status_monitor)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=False)

@@ -110,7 +110,7 @@
           Set posisi anchor untuk trilaterasi. Data ini akan disimpan di server.
         </p>
 
-        <form id="anchor-form" class="space-y-4 max-h-72 overflow-y-auto custom-scrollbar pr-2"></form>
+        <form id="anchor-form" class="space-y-4 max-h-96 overflow-y-auto custom-scrollbar pr-2"></form>
 
         <button 
           onclick="saveAnchors()" 
@@ -155,9 +155,15 @@
           >
         </div>
   
-        <a href="/rtls/download" class="mt-4 block text-center bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-semibold">
-          📥 Download Excel
-        </a>
+        <div class="flex justify-between space-x-4 mt-4">
+            <a href="/rtls/download" class="w-1/2 block text-center bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-semibold text-white">
+                📥 Download Excel
+            </a>
+            
+            <button id="resetDbButton" class="w-1/2 bg-red-600 hover:bg-red-700 py-2 rounded-lg font-semibold text-white">
+                🗑️ Reset Database
+            </button>
+        </div>
   
     </div>
 
