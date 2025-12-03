@@ -5,7 +5,7 @@ let isTagConnected = false;
 let currentAnchors = {};
 let anchorFormInitialized = false;
 let lastAnchorKeySet = [];
-let rssiPoints = { A1: [], A2: [], A3: [], A4: [] };
+let rssiPoints = { A2: [], A3: [], A4: [] };
 
 let lastValidData = null;
 let lastUpdate = 0;
@@ -156,7 +156,7 @@ socket.on('uwb_update', (data) => {
 
     renderPlotPlaceholder();     
     updateAnchorsUI({});         
-    updateTagUI({x: 0, y: 0, z: 0});
+    updateTagUI({x: 0, y: 0});
 
     renderRSSIPlaceholder() 
 
@@ -178,72 +178,64 @@ socket.on('uwb_update', (data) => {
 
 // 3D offline scene
 function renderPlotPlaceholder() {
-  const fixedAnchors = [
-    {name: 'A1', x: 0, y: 0, z: 0},
-    {name: 'A2', x: 5, y: 0, z: 0},
-    {name: 'A3', x: 0, y: 5, z: 0},
-    {name: 'A4', x: 5, y: 5, z: 0}
-  ];
+
+  const keys = Object.keys(currentAnchors);
 
   const anchorTrace = {
-    x: fixedAnchors.map(a => a.x),
-    y: fixedAnchors.map(a => a.y),
-    z: fixedAnchors.map(a => a.z),
+    x: keys.map(k => currentAnchors[k].x),
+    y: keys.map(k => currentAnchors[k].y),
     mode: 'markers+text',
-    type: 'scatter3d',
-    text: fixedAnchors.map(a => a.name),
-    marker: { size: 8, color: '#3B82F6' }
+    type: 'scatter',
+    text: keys,
+    textposition: 'top center',
+    marker: { size: 12, color: '#3B82F6' }
   };
 
   const tagTrace = {
-    x: [2.5],
-    y: [2.5],
-    z: [0.5],
+    x: [0.4],
+    y: [0.5],
     mode: 'markers+text',
-    type: 'scatter3d',
+    type: 'scatter',
     text: ['Tag Offline'],
-    marker: { size: 12, color: '#EF4444' }
+    textposition: 'bottom center',
+    marker: { size: 16, color: '#EF4444' }
   };
 
-  Plotly.react("plot-area", [anchorTrace, tagTrace], window.plotLayout);
+  Plotly.react("plot-area", [anchorTrace, tagTrace], window.plotLayout2D);
 }
 
 // 3D normal scene
 function renderPlot(pos) {
-  const fixedAnchors = [
-    {name: 'A1', x: 0, y: 0, z: 0},
-    {name: 'A2', x: 5, y: 0, z: 0},
-    {name: 'A3', x: 0, y: 5, z: 0},
-    {name: 'A4', x: 5, y: 5, z: 0}
-  ];
+
+  const keys = Object.keys(currentAnchors);
 
   const anchorTrace = {
-    x: fixedAnchors.map(a => a.x),
-    y: fixedAnchors.map(a => a.y),
-    z: fixedAnchors.map(a => a.z),
+    x: keys.map(k => currentAnchors[k].x),
+    y: keys.map(k => currentAnchors[k].y),
     mode: 'markers+text',
-    type: 'scatter3d',
-    text: fixedAnchors.map(a => a.name),
-    marker: { size: 8, color: '#3B82F6' }
+    type: 'scatter',
+    text: keys,
+    textposition: 'top center',
+    marker: { size: 12, color: '#3B82F6' }
   };
 
   const tagTrace = {
     x: [pos.x],
     y: [pos.y],
-    z: [pos.z],
     mode: 'markers+text',
-    type: 'scatter3d',
+    type: 'scatter',
     text: ['Tag'],
-    marker: { size: 12, color: '#22C55E' }
+    textposition: 'bottom center',
+    marker: { size: 16, color: '#22C55E' }
   };
 
-  Plotly.react("plot-area", [anchorTrace, tagTrace], window.plotLayout);
-} 
+  Plotly.react("plot-area", [anchorTrace, tagTrace], window.plotLayout2D);
+}
 
 // Tag position info
 function updateTagUI(pos) {
   document.getElementById("pos").textContent =
-    `X: ${pos.x.toFixed(2)} m, Y: ${pos.y.toFixed(2)} m, Z: ${pos.z.toFixed(2)} m`;
+    `X: ${pos.x.toFixed(2)} m, Y: ${pos.y.toFixed(2)} m`;
 }
 
 // Anchor UI cards
@@ -318,10 +310,10 @@ function buildAnchorForm(anchorKeys) {
   anchorKeys.forEach((key) => {
     
     if (!currentAnchors[key]) {
-      currentAnchors[key] = { x: 0, y: 0, z: 0 };
+      currentAnchors[key] = { x: 0, y: 0 };
     }
 
-    const a = currentAnchors[key] || { x: 0, y: 0, z: 0 };
+    const a = currentAnchors[key] || { x: 0, y: 0 };
 
     const block = document.createElement("div");
     block.className = "bg-gray-800/40 p-3 rounded-xl border border-gray-700/50";
@@ -344,14 +336,6 @@ function buildAnchorForm(anchorKeys) {
             value="${a.y}"
             class="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded-lg text-blue-300">
         </div>
-        
-        <div>
-          <label class="text-xs text-gray-400">Z (m)</label>
-          <input type="number" step="0.01" id="${key}-z"
-            value="${a.z}"
-            class="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded-lg text-blue-300">
-        </div>
-
 
       </div>
     `;
@@ -424,7 +408,6 @@ async function saveAnchors() {
     payload[key] = {
       x: parseFloat(document.getElementById(`${key}-x`).value),
       y: parseFloat(document.getElementById(`${key}-y`).value),
-      z: parseFloat(document.getElementById(`${key}-z`).value)
     };
   });
 

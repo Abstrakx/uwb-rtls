@@ -47,7 +47,6 @@ def uwb_update():
 
         anchors_data = {}
         anchors_slot = {
-            "A1": None,
             "A2": None,
             "A3": None,
             "A4": None
@@ -70,7 +69,7 @@ def uwb_update():
 
         pos = None
         if len(usable) >= 3:
-            pos = trilaterate_3d(usable, ranges)
+            pos = trilaterate_2d(usable, ranges)
 
         # normalize output trilaterate
         if isinstance(pos, (int, float, np.generic)):
@@ -78,19 +77,14 @@ def uwb_update():
         elif isinstance(pos, np.ndarray) and pos.ndim == 0:
             pos = None
 
-        if pos is None or not hasattr(pos, "__len__") or len(pos) != 3:
-            pos_data = {"x": 0, "y": 0, "z": 0}
+        if isinstance(pos, dict) and "x" in pos and "y" in pos:
+            pos_data = {"x": float(pos["x"]), "y": float(pos["y"])}
         else:
-            pos_data = {
-                "x": float(pos[0]),
-                "y": float(pos[1]),
-                "z": float(pos[2]),
-            }
+            pos_data = {"x": 0, "y": 0}
 
         valid = (
             pos_data["x"] is not None and
-            pos_data["y"] is not None and
-            pos_data["z"] is not None 
+            pos_data["y"] is not None 
         )
         
         for key in anchors_data:
@@ -103,7 +97,6 @@ def uwb_update():
         if is_recording and valid and (now - last_record_time >= record_interval):
             last_record_time = now
 
-            a1_key = anchors_slot["A1"]
             a2_key = anchors_slot["A2"]
             a3_key = anchors_slot["A3"]
             a4_key = anchors_slot["A4"]
@@ -111,10 +104,6 @@ def uwb_update():
             record = RTLSRecord(
                 x=float(pos_data.get("x", 0)), 
                 y=float(pos_data.get("y", 0)), 
-                z=float(pos_data.get("z", 0)), 
-
-                a1_range=anchors_data.get(a1_key, {}).get("range"),
-                a1_rssi=anchors_data.get(a1_key, {}).get("rssi"),
 
                 a2_range=anchors_data.get(a2_key, {}).get("range"),
                 a2_rssi=anchors_data.get(a2_key, {}).get("rssi"),
@@ -201,57 +190,38 @@ def save_anchors():
         json.dump(anchor_positions, f, indent=2)
     print("💾 Anchors saved:", anchor_positions)
 
-# Trilateration Algorithm (3D)
-def trilaterate_3d(anchor_positions, ranges):
-    keys = list(anchor_positions.keys())
+def trilaterate_2d(anchors, ranges):
 
-    valid = [k for k in keys if k in ranges and ranges[k] >= 0]
-    if len(valid) < 4:
+    keys = list(anchors.keys())
+    if len(keys) < 3:
         return None
 
-    keys = valid[:4]  
+    A1, A2, A3 = keys[:3]
 
-    P1 = np.array((
-        anchor_positions[keys[0]]["x"],
-        anchor_positions[keys[0]]["y"],
-        anchor_positions[keys[0]]["z"],
-    ))
-    r1 = ranges[keys[0]]
+    x1, y1 = anchors[A1]["x"], anchors[A1]["y"]
+    x2, y2 = anchors[A2]["x"], anchors[A2]["y"]
+    x3, y3 = anchors[A3]["x"], anchors[A3]["y"]
 
-    A = []
-    b = []
+    r1, r2, r3 = ranges[A1], ranges[A2], ranges[A3]
 
-    for k in keys[1:]:
-        Pi = np.array((
-            anchor_positions[k]["x"],
-            anchor_positions[k]["y"],
-            anchor_positions[k]["z"],
-        ))
-        ri = ranges[k]
+    # Rumus trilaterasi 2D (analitik)
+    A = 2*(x2 - x1)
+    B = 2*(y2 - y1)
+    C = r1**2 - r2**2 - x1**2 + x2**2 - y1**2 + y2**2
 
-        A.append([
-            2*(Pi[0] - P1[0]),
-            2*(Pi[1] - P1[1]),
-            2*(Pi[2] - P1[2])
-        ])
+    D = 2*(x3 - x1)
+    E = 2*(y3 - y1)
+    F = r1**2 - r3**2 - x1**2 + x3**2 - y1**2 + y3**2
 
-        b.append(
-            r1**2 - ri**2
-            - (P1[0]**2 - Pi[0]**2)
-            - (P1[1]**2 - Pi[1]**2)
-            - (P1[2]**2 - Pi[2]**2)
-        )
+    denom = (A*E - B*D)
+    if abs(denom) < 1e-6:
+        return None  # paralel / tidak bisa dihitung
 
-    A = np.array(A)
-    b = np.array(b)
+    x = (C*E - B*F) / denom
+    y = (A*F - C*D) / denom
 
-    pos, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+    return {"x": x, "y": y}
 
-    pos = np.array(pos).flatten()
-    if pos.size != 3:
-        return None
-
-    return pos.tolist()
 
 @app.route("/rtls/start", methods=["POST"])
 def rtls_start():
@@ -287,17 +257,17 @@ def download_excel():
     ws = wb.active
 
     ws.append([
-            "timestamp", "x", "y", "z", 
-            "A1_Range", "A2_Range", "A3_Range", "A4_Range",
-            "A1_RSSI", "A2_RSSI", "A3_RSSI", "A4_RSSI"  
+            "timestamp", "x", "y", 
+            "A2_Range", "A3_Range", "A4_Range",
+            "A2_RSSI", "A3_RSSI", "A4_RSSI"  
         ])
 
     rows = RTLSRecord.query.all()
     for r in rows:
         ws.append([
-            r.timestamp, r.x, r.y, r.z, 
-            r.a1_range, r.a2_range, r.a3_range, r.a4_range,
-            r.a1_rssi, r.a2_rssi, r.a3_rssi, r.a4_rssi 
+            r.timestamp, r.x, r.y, 
+            r.a2_range, r.a3_range, r.a4_range,
+            r.a2_rssi, r.a3_rssi, r.a4_rssi 
         ])
 
     filename = "recordings/rtls.xlsx"
@@ -318,4 +288,4 @@ def handle_connect():
 if __name__ == '__main__':
     load_anchors()
     socketio.start_background_task(tag_status_monitor)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
